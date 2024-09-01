@@ -1,27 +1,37 @@
 version: 0.2
+
 phases:
+  install:
+    commands:
+      - echo "Installing dependencies"
+      - aws --version
+  
   pre_build:
     commands:
-      - echo logging in to ECR
-      - aws --version
+      - echo Logging in to ECR
       - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 223647876635.dkr.ecr.ap-south-1.amazonaws.com
       - REPOSITORY_URI=223647876635.dkr.ecr.ap-south-1.amazonaws.com/django-aws-tf-backend
-      - IMAGE_TAG=build-$(echo $(CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
-  pre_build:
-    commands:
+      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
       - echo Build started on `date`
       - pip install -r requirements.txt
       - python manage.py collectstatic --noinput
+  
+  build:
+    commands:
       - echo Building the docker image
       - docker build -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  
   post_build:
     commands:
       - echo Build completed on `date`
-      - echo pushing to ECR
+      - echo Pushing to ECR
       - docker push $REPOSITORY_URI:latest
       - echo Pushed Docker image successfully
       - echo Writing image definitions file
       - printf '[{"name":"'$ecs_container_name'","imageUri":"%s"}]' $REPOSITORY_URI:${IMAGE_TAG} > adflow-imagedefinitions.json
-  artifacts:
-    files: adflow-imagedefinitions.json
+
+artifacts:
+  files:
+    - adflow-imagedefinitions.json
+
